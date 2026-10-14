@@ -88,3 +88,25 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.savefig(os.path.join(carpeta_resultados, "comparacion_modelos.png"))
     print(f"\nResultados guardados en la carpeta '{carpeta_resultados}/'")
+
+    # --------------------------------------------------------------------
+    # Selección del modelo de mejor performance
+    # --------------------------------------------------------------------
+    # El dataset está fuertemente desbalanceado (~95% de los clientes paga
+    # a tiempo), por lo que accuracy no es confiable: un modelo que siempre
+    # prediga la clase mayoritaria ya obtendría ~95% sin haber aprendido
+    # nada. La métrica relevante acá es ROC-AUC, porque no depende de la
+    # proporción de clases y mide qué tan bien el modelo distingue entre
+    # clientes que pagan y los que no.
+    #
+    # Con los resultados obtenidos (ver tabla_resumen_modelos.csv):
+    #   - Logistic Regression: ROC-AUC 0.639 (el más alto)
+    #   - Random Forest:       ROC-AUC 0.629 (prácticamente empatado)
+    #   - Decision Tree:       ROC-AUC 0.528 (el más débil, casi al azar)
+    #
+    # Se elige Logistic Regression como modelo de mejor performance:
+    # tiene el ROC-AUC más alto y, a diferencia de Random Forest, es un
+    # modelo simple e interpretable — una ventaja relevante en un caso de
+    # riesgo crediticio, donde poder explicar por qué se aprueba o
+    # rechaza un crédito es tan importante como la métrica en sí.
+    print("\nModelo seleccionado: Logistic Regression (mayor ROC-AUC, mayor interpretabilidad)")

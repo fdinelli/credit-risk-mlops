@@ -34,26 +34,52 @@ from sklearn.model_selection import train_test_split
 
 
 def cargar_y_limpiar(path_csv):
+    """
+    Carga el CSV crudo y replica, de forma reproducible, los tratamientos de
+    nulos/outliers detectados a mano durante el EDA exploratorio (Avance 1,
+    comprension_eda.ipynb). Cada valor "mágico" de acá abajo corresponde a un
+    valor inválido encontrado en esa exploración (no son umbrales inventados).
+
+    Devuelve el DataFrame limpio, listo para separar en X/y y pasar por el
+    ColumnTransformer de generar_datasets().
+    """
     df = pd.read_csv(path_csv)
 
-    df = df.drop(columns=['puntaje'])  # data leakage: ver nota en el docstring
+    # puntaje: se descarta por completo (data leakage confirmado en Avance 2,
+    # ver detalle en el README y en el docstring del módulo más arriba).
+    df = df.drop(columns=['puntaje'])
 
+    # tendencia_ingresos: el EDA detectó valores numéricos sueltos mezclados
+    # con las 3 categorías válidas -> se reemplazan por NaN para imputar después.
     valores_validos = ['Estable', 'Creciente', 'Decreciente']
     df.loc[~df['tendencia_ingresos'].isin(valores_validos), 'tendencia_ingresos'] = np.nan
 
+    # fecha_prestamo: se descarta la fecha completa y se extrae solo el mes
+    # (tratado como variable nominal/cíclica, no numérica, ver README).
     df['mes_prestamo'] = pd.to_datetime(df['fecha_prestamo']).dt.month
     df = df.drop(columns=['fecha_prestamo'])
 
+    # tipo_credito: 68 es un código inexistente en el diccionario de datos.
     df['tipo_credito'] = df['tipo_credito'].replace(68, np.nan)
+    # edad_cliente: 121/122/123 son edades imposibles (errores de carga).
     df['edad_cliente'] = df['edad_cliente'].replace([121, 122, 123], np.nan)
+    # salario_cliente / total_otros_prestamos: valores por encima de 100M son
+    # outliers extremos detectados en el EDA, muy por fuera de cualquier rango
+    # plausible para este dataset.
     df.loc[df['salario_cliente'] > 100_000_000, 'salario_cliente'] = np.nan
     df.loc[df['total_otros_prestamos'] > 100_000_000, 'total_otros_prestamos'] = np.nan
+    # cant_creditosvigentes: 62 créditos vigentes simultáneos es un valor
+    # atípico imposible, aislado en el EDA.
     df['cant_creditosvigentes'] = df['cant_creditosvigentes'].replace(62, np.nan)
+    # puntaje_datacredito: -7 es un código de error/dato faltante de la
+    # central de riesgo, no un puntaje real.
     df.loc[df['puntaje_datacredito'] == -7, 'puntaje_datacredito'] = np.nan
 
     return df
 
 
+# Columnas numéricas "normales": los nulos se imputan con la mediana (robusta
+# a outliers, a diferencia de la media).
 columnas_numericas = [
     'capital_prestado', 'plazo_meses', 'edad_cliente', 'salario_cliente',
     'total_otros_prestamos', 'cuota_pactada', 'puntaje_datacredito',
@@ -62,10 +88,14 @@ columnas_numericas = [
     'creditos_sectorCooperativo', 'creditos_sectorReal', 'promedio_ingresos_datacredito'
 ]
 
+# Columnas numéricas donde un nulo significa "sin mora" (0), no un dato
+# faltante a imputar con una medida de tendencia central.
 columnas_numericas_cero = ['saldo_mora', 'saldo_mora_codeudor']
 
+# Categóricas sin orden entre sus valores -> OneHotEncoder.
 columnas_nominales = ['tipo_credito', 'tipo_laboral', 'mes_prestamo']
 
+# Categórica con un orden lógico explícito (empeora -> mejora) -> OrdinalEncoder.
 columnas_ordinales = ['tendencia_ingresos']
 orden_tendencia = ['Decreciente', 'Estable', 'Creciente']
 
@@ -78,6 +108,8 @@ pipeline_numerico_cero = Pipeline([
 ])
 
 pipeline_nominal = Pipeline([
+    # most_frequent para imputar y handle_unknown='ignore' para que el
+    # modelo no rompa si en producción aparece una categoría nueva.
     ('imputer', SimpleImputer(strategy='most_frequent')),
     ('onehot', OneHotEncoder(handle_unknown='ignore'))
 ])
@@ -87,6 +119,11 @@ pipeline_ordinal = Pipeline([
     ('ordinal', OrdinalEncoder(categories=[orden_tendencia]))
 ])
 
+# ColumnTransformer: aplica cada pipeline solo a sus columnas correspondientes
+# y después concatena todo en una única matriz de features lista para el
+# modelo. Estandariza el preprocesamiento para que siempre sea exactamente
+# igual en train y en test (se fit_transform-ea en train y solo
+# transform-ea en test, para evitar data leakage entre los dos sets).
 preprocesador = ColumnTransformer([
     ('num', pipeline_numerico, columnas_numericas),
     ('num_cero', pipeline_numerico_cero, columnas_numericas_cero),
