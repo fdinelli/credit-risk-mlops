@@ -1,0 +1,6 @@
+# Entorno virtual
+mod5/
+
+# Cache de Python
+__pycache__/
+*.pyc
