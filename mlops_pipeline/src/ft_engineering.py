@@ -4,7 +4,7 @@ Ingeniería de características para el modelo de riesgo crediticio (PIM5).
 
 Clasificación de columnas:
 - Numéricas (mediana): capital_prestado, plazo_meses, edad_cliente, salario_cliente,
-  total_otros_prestamos, cuota_pactada, puntaje, puntaje_datacredito,
+  total_otros_prestamos, cuota_pactada, puntaje_datacredito,
   cant_creditosvigentes, huella_consulta, saldo_total, saldo_principal,
   creditos_sectorFinanciero, creditos_sectorCooperativo, creditos_sectorReal,
   promedio_ingresos_datacredito
@@ -13,6 +13,10 @@ Clasificación de columnas:
 - Categóricas ordinales (OrdinalEncoder): tendencia_ingresos
   (orden: Decreciente < Estable < Creciente)
 - Descartada: fecha_prestamo (reemplazada por mes_prestamo)
+- Descartada: puntaje — data leakage confirmado en Avance 2: separa a los dos
+  grupos de Pago_atiempo sin ningún solapamiento (grupo 0 hasta 62.67, grupo 1
+  desde 63.81), algo que ningún score de crédito real produce. Ver README
+  para el detalle de la verificación.
 - Target: Pago_atiempo
 
 Nota: promedio_ingresos_datacredito y tendencia_ingresos se trataron con muestreo
@@ -32,7 +36,7 @@ from sklearn.model_selection import train_test_split
 def cargar_y_limpiar(path_csv):
     df = pd.read_csv(path_csv)
 
-    df['puntaje'] = df['puntaje'].str.replace(',', '.').astype(float)
+    df = df.drop(columns=['puntaje'])  # data leakage: ver nota en el docstring
 
     valores_validos = ['Estable', 'Creciente', 'Decreciente']
     df.loc[~df['tendencia_ingresos'].isin(valores_validos), 'tendencia_ingresos'] = np.nan
@@ -52,7 +56,7 @@ def cargar_y_limpiar(path_csv):
 
 columnas_numericas = [
     'capital_prestado', 'plazo_meses', 'edad_cliente', 'salario_cliente',
-    'total_otros_prestamos', 'cuota_pactada', 'puntaje', 'puntaje_datacredito',
+    'total_otros_prestamos', 'cuota_pactada', 'puntaje_datacredito',
     'cant_creditosvigentes', 'huella_consulta', 'saldo_total',
     'saldo_principal', 'creditos_sectorFinanciero',
     'creditos_sectorCooperativo', 'creditos_sectorReal', 'promedio_ingresos_datacredito'
