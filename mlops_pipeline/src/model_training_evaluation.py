@@ -11,7 +11,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+    accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,
+    precision_recall_curve
 )
 
 from ft_engineering import generar_datasets, preprocesador
@@ -19,7 +20,10 @@ from ft_engineering import generar_datasets, preprocesador
 
 def build_model(modelo, X_train, y_train):
     """
-    Entrena un modelo ya instanciado (sin entrenar) y lo devuelve entrenado.Se llama una vez por cada algoritmo que se quiera probar.
+    Entrena un modelo ya instanciado (sin entrenar) y lo devuelve entrenado.
+    Función genérica: se llama una vez por cada algoritmo que se quiera
+    probar (no entrena varios modelos a la vez), pero garantiza que todos
+    se entrenen exactamente de la misma manera.
     """
     modelo.fit(X_train, y_train)
     return modelo
@@ -27,10 +31,13 @@ def build_model(modelo, X_train, y_train):
 
 def summarize_classification(modelo, X_test, y_test):
     """
-    Evalúa un modelo ya entrenado sobre el set de test. Devuelve un diccionario con las métricas clave para comparar modelos
-    de forma consistente.
+    Evalúa un modelo ya entrenado sobre el set de test y devuelve un
+    diccionario con las métricas clave. Estandariza el cálculo para que
+    todos los modelos se comparen bajo las mismas condiciones.
     """
     y_pred = modelo.predict(X_test)
+    # predict_proba(...)[:, 1] = probabilidad de la clase positiva,
+    # necesaria para roc_auc_score (no alcanza con la predicción 0/1).
     y_proba = modelo.predict_proba(X_test)[:, 1]
 
     return {
@@ -43,8 +50,12 @@ def summarize_classification(modelo, X_test, y_test):
 
 
 if __name__ == "__main__":
+    # random_state=42 en todos los modelos para que los resultados sean
+    # reproducibles (mismo split y mismo entrenamiento en cada corrida).
     X_train, X_test, y_train, y_test = generar_datasets("../../Base_de_datos.csv")
 
+    # max_iter=1000: con el default (100) el solver no llega a converger
+    # con este dataset y tira ConvergenceWarning.
     modelo_lr = build_model(LogisticRegression(max_iter=1000), X_train, y_train)
     resultados_lr = summarize_classification(modelo_lr, X_test, y_test)
     print("Logistic Regression:", resultados_lr)
@@ -88,6 +99,34 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.savefig(os.path.join(carpeta_resultados, "comparacion_modelos.png"))
     print(f"\nResultados guardados en la carpeta '{carpeta_resultados}/'")
+
+    # --------------------------------------------------------------------
+    # Curva Precision-Recall
+    # --------------------------------------------------------------------
+    # precision/recall en la tabla resumen son un único punto (con el
+    # umbral de decisión por defecto, 0.5). La curva muestra el trade-off
+    # completo entre ambas al mover ese umbral: útil en un caso de riesgo
+    # crediticio, donde se podría querer ajustar el umbral según cuánto
+    # pesa, para el negocio, rechazar un buen cliente vs. aprobar uno malo.
+    modelos_entrenados = {
+        "Logistic Regression": modelo_lr,
+        "Decision Tree": modelo_dt,
+        "Random Forest": modelo_rf,
+    }
+
+    plt.figure(figsize=(7, 6))
+    for nombre, modelo in modelos_entrenados.items():
+        y_proba = modelo.predict_proba(X_test)[:, 1]
+        precision, recall, _ = precision_recall_curve(y_test, y_proba)
+        plt.plot(recall, precision, label=nombre)
+
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("Curva Precision-Recall por modelo")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(carpeta_resultados, "curva_precision_recall.png"))
+    print(f"Curva Precision-Recall guardada en '{carpeta_resultados}/curva_precision_recall.png'")
 
     # --------------------------------------------------------------------
     # Selección del modelo de mejor performance
