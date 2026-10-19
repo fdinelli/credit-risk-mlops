@@ -196,7 +196,11 @@ def hay_alerta(metricas):
     señales = 0
     if pd.notna(metricas.get("psi")) and metricas["psi"] > UMBRAL_PSI_ALERTA:
         señales += 1
-    if pd.notna(metricas.get("ks_pvalue")) and metricas["ks_pvalue"] < UMBRAL_KS_PVALUE:
+    # KS: p-value bajo (significancia estadística) Y estadístico alto
+    # (relevancia práctica) a la vez -> ver nota de UMBRAL_KS_STAT más arriba.
+    if (pd.notna(metricas.get("ks_pvalue")) and pd.notna(metricas.get("ks_stat"))
+            and metricas["ks_pvalue"] < UMBRAL_KS_PVALUE
+            and metricas["ks_stat"] > UMBRAL_KS_STAT):
         señales += 1
     if pd.notna(metricas.get("chi2_pvalue")) and metricas["chi2_pvalue"] < UMBRAL_CHI2_PVALUE:
         señales += 1
