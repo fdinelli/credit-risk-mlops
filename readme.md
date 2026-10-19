@@ -174,7 +174,7 @@ métricas disponibles (de 3 para numéricas, de 2 para categóricas), y además 
 KS exige, junto al p-value bajo, que el estadístico KS en sí (la distancia entre
 distribuciones, no solo su significancia) supere `UMBRAL_KS_STAT = 0.15` —
 significancia estadística y relevancia práctica a la vez. Con este criterio, el
-resultado bajó a **34 alertas de 240 (14%)**, mucho más razonable.
+resultado bajó a **31 alertas de 240 (13%)**, mucho más razonable.
 
 Nota honesta: como el split train/test es aleatorio (no se particiona por mes),
 cada "mes" del test es en realidad una submuestra al azar de la misma población
