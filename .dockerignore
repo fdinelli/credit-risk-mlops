@@ -1,0 +1,7 @@
+mod5/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+Base_de_datos.csv
+.vscode/

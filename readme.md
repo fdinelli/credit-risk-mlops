@@ -16,9 +16,15 @@ credit-risk-mlops/
 │       ├── model_training_evaluation.py
 │       ├── model_deploy.py
 │       ├── model_monitoring.py
-│       └── app_monitoring.py
+│       ├── app_monitoring.py
+│       └── resultados/
+│           ├── modelo_logistic_regression.pkl
+│           └── preprocesador.pkl
 ├── Base_de_datos.csv
 ├── requirements.txt
+├── requirements-api.txt
+├── Dockerfile
+├── .dockerignore
 ├── .gitignore
 └── readme.md
 ```
@@ -194,5 +200,79 @@ Visualiza los resultados de `resultados/drift_metrics.csv`:
   reentrenamiento).
 
 Para correrla: `streamlit run app_monitoring.py` desde `mlops_pipeline/src`.
+
+## Avance 4 — API con FastAPI y empaquetado en Docker
+
+### Persistencia del modelo (requisito previo)
+
+La API necesita el modelo y el preprocesador ya entrenados, sin volver a
+entrenarlos en cada arranque. Hasta el Avance 3, `model_training_evaluation.py`
+entrenaba los tres modelos pero nunca los guardaba en disco. Se agregó, al final
+del bloque principal del script, la persistencia con `joblib` tanto del modelo
+ganador (Logistic Regression) como del preprocesador ya fiteado — el mismo
+objeto de `ft_engineering.py` que `generar_datasets()` deja ajustado con
+`fit_transform(X_train)`. Ambos quedan en `resultados/modelo_logistic_regression.pkl`
+y `resultados/preprocesador.pkl`.
+
+Esta distinción importa: en producción el preprocesador siempre se usa con
+`.transform(...)`, nunca con `.fit_transform(...)` — volver a fitear sobre datos
+nuevos (o sobre un único cliente) rompería la consistencia con lo que el modelo
+aprendió en entrenamiento.
+
+### `model_deploy.py` — API con FastAPI
+
+Expone el modelo vía dos endpoints:
+
+- **`GET /`**: chequeo simple de que la API está funcionando.
+- **`POST /predict`**: recibe los datos de **un** cliente (validados
+  automáticamente contra el esquema `Cliente`, un `BaseModel` de Pydantic con
+  los 20 features del modelo) y devuelve `pago_a_tiempo` (bool) y
+  `probabilidad` (float, probabilidad de la clase positiva).
+- **`POST /predict_batch`**: la misma lógica pero recibe una lista de
+  clientes y devuelve una lista de predicciones — pensado para scoring de
+  varios créditos a la vez, no solo uno por uno.
+
+Documentación interactiva autogenerada por FastAPI en `/docs` (Swagger UI),
+usada para probar ambos endpoints antes de empaquetar la imagen.
+
+### Empaquetado en Docker
+
+**`Dockerfile`:** imagen base `python:3.13-slim`, instala dependencias,
+copia el proyecto y corre `uvicorn model_deploy:app --host 0.0.0.0 --port 8000`
+desde `mlops_pipeline/src`. El `--host 0.0.0.0` es necesario para que el
+servidor sea accesible desde fuera del contenedor (no solo desde `localhost`
+dentro de él). Las dependencias se copian e instalan en un paso separado,
+*antes* de copiar el resto del código: así, si solo cambia el código de la
+API, Docker reutiliza la capa de dependencias ya instaladas en vez de
+reinstalar todo de cero.
+
+**`requirements-api.txt` (hallazgo y decisión):** el primer intento de build
+usando el `requirements.txt` completo falló al instalar `pywinpty` — un
+paquete exclusivo de Windows que llega como dependencia transitiva de Jupyter,
+y que no puede compilarse dentro de un contenedor Linux. El `requirements.txt`
+original está pensado para el entorno de desarrollo (notebooks, Jupyter, etc.),
+no para lo que la API necesita en producción. Se creó `requirements-api.txt`
+con únicamente las 7 dependencias reales de `model_deploy.py`
+(fastapi, uvicorn, pydantic, pandas, numpy, scikit-learn, joblib) y el
+Dockerfile instala desde ese archivo — una imagen más liviana y sin paquetes
+incompatibles con Linux. De paso se detectó que `fastapi`, `uvicorn` y
+`pydantic` tampoco estaban en el `requirements.txt` del entorno de desarrollo
+(se habían instalado con pip pero nunca se habían re-congelado ahí), así que
+se agregaron también.
+
+**`.dockerignore`:** excluye del build de la imagen lo que no hace falta en
+producción — el entorno virtual (`mod5/`), cachés de Python, `.git/`, la
+configuración de VS Code y el propio `Base_de_datos.csv` (el dataset crudo
+solo se usa para entrenar, localmente; la API en producción solo necesita los
+`.pkl` ya entrenados en `resultados/`).
+
+### Cómo correrlo
+
+```
+docker build -t credit-risk-api .
+docker run -p 8000:8000 credit-risk-api
+```
+
+Luego, `http://localhost:8000/docs` para la documentación interactiva.
 
 *Proyecto en desarrollo — este README se irá actualizando con los próximos avances.*
