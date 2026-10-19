@@ -45,13 +45,43 @@ credit-risk-mlops/
    pip install -r requirements.txt
    ```
 
-## Estado actual del proyecto (Avance 1)
+## Avance 1 — Versionamiento y EDA
 
 - Estructura de carpetas y ramas (`developer`, `certification`, `main`) creadas según la consigna.
 - `Cargar_datos.ipynb`: carga del dataset real y verificación inicial (tipos de dato, nulos a alto nivel).
 - `comprension_eda.ipynb`: exploración de tipos de variable, tratamiento de nulos (7 columnas),
   verificación de duplicados (sin duplicados) y tratamiento de outliers en varias columnas.
 - Entorno virtual y `requirements.txt` generados.
+
+### Hallazgos principales del EDA
+
+- **23 variables en total, 7 con valores nulos.** Varias llegaban mal tipadas (como texto en vez de
+  numéricas); se corrigieron para este análisis (el tratamiento definitivo queda en `ft_engineering.py`,
+  Avance 2). Verificación de duplicados: **ninguno** en todo el dataset.
+- **`tipo_credito`**: 6 valores distintos, fuertemente concentrados en dos categorías (4 y 9, ~10.600 de
+  ~10.900 casos). El valor `68` aparece en un solo caso, rompe la escala del resto (4 a 10) y es sospechoso
+  de ser un error de carga — tratado como nulo en Avance 2.
+- **`plazo_meses`**: 18 valores distintos pero sin progresión proporcional entre ellos (de 12 a 18 hay 6
+  meses, de 18 a 20 solo 2) — indica que son plazos comerciales específicos de la financiera, no una
+  escala numérica continua.
+- **Outliers por error de carga, no por comportamiento real del cliente** (criterio: comparar contra el
+  percentil 75 real de cada variable, no "a ojo"):
+  - `salario_cliente`: valores de hasta 22.000 millones (media real ~17,2 millones) — 74 filas (~0,69%)
+    por encima del umbral de 100 millones, tratadas como nulo.
+  - `total_otros_prestamos`: mismo patrón, hasta 6.787 millones — 44 filas (~0,41%) por encima del mismo
+    umbral.
+  - `edad_cliente`: valores 121/122/123 (edades imposibles) — reemplazados por la mediana.
+  - `cant_creditosvigentes`: salto abrupto de 38 a 62 sin valores intermedios — 1 caso aislado, tratado
+    como error.
+  - `puntaje_datacredito`: código `-7` identificado como valor de error de la central de riesgo, no un
+    puntaje real.
+- **Validación cruzada, no solo descriptiva**: `cuota_pactada` tenía valores que a primera vista parecían
+  outliers (hasta 3,8 millones), pero al cruzarlos con `capital_prestado` y `plazo_meses` resultaron ser
+  matemáticamente consistentes (capitales altos a plazos cortos) — se mantuvieron sin tratar, evitando
+  descartar datos válidos por error.
+- **Criterio de imputación**: mediana para las variables numéricas con outliers, por ser la medida más
+  robusta frente a valores atípicos — mismo criterio aplicado de forma consistente en `ft_engineering.py`
+  (Avance 2).
 
 ## Avance 2 — Ingeniería de características y modelado
 
@@ -275,4 +305,4 @@ docker run -p 8000:8000 credit-risk-api
 
 Luego, `http://localhost:8000/docs` para la documentación interactiva.
 
-*Proyecto en desarrollo — este README se irá actualizando con los próximos avances.*
+*Proyecto completo — los 4 avances del PIM5 fueron entregados.*
