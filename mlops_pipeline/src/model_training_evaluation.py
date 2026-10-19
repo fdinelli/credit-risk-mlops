@@ -5,6 +5,7 @@ crediticio (PIM5, Avance 2).
 """
 
 import os
+import joblib
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
@@ -149,3 +150,18 @@ if __name__ == "__main__":
     # riesgo crediticio, donde poder explicar por qué se aprueba o
     # rechaza un crédito es tan importante como la métrica en sí.
     print("\nModelo seleccionado: Logistic Regression (mayor ROC-AUC, mayor interpretabilidad)")
+
+    # --------------------------------------------------------------------
+    # Persistencia del modelo y del preprocesador (Avance 4)
+    # --------------------------------------------------------------------
+    # Se guardan ambos objetos con joblib (más eficiente que pickle para los
+    # arrays de numpy que hay adentro de un modelo/ColumnTransformer ya
+    # entrenado). El preprocesador que se guarda es el mismo objeto global
+    # importado de ft_engineering: generar_datasets() ya lo dejó fiteado con
+    # fit_transform(X_train), así que lo que se persiste acá es exactamente
+    # el que se usó para entrenar — necesario para que, en producción (la
+    # API de model_deploy.py), los datos nuevos se transformen de la misma
+    # manera antes de pasarlos al modelo.
+    joblib.dump(modelo_lr, os.path.join(carpeta_resultados, "modelo_logistic_regression.pkl"))
+    joblib.dump(preprocesador, os.path.join(carpeta_resultados, "preprocesador.pkl"))
+    print(f"Modelo y preprocesador guardados en '{carpeta_resultados}/'")
