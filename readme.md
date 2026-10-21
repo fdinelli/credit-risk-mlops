@@ -83,6 +83,22 @@ credit-risk-mlops/
   robusta frente a valores atípicos — mismo criterio aplicado de forma consistente en `ft_engineering.py`
   (Avance 2).
 
+### Análisis bivariado y multivariado
+
+- **Bivariado (variables vs. `Pago_atiempo`)**: `saldo_mora` es la variable que más separa a los dos
+  grupos (promedio ~82 en quienes no pagaron a tiempo vs. ~4 en quienes sí, ~20x) — coherente con que la
+  mora ya existente al momento del préstamo es una señal directa de riesgo (a diferencia de `puntaje`, que
+  era leakage real). `huella_consulta` también es más alta en el grupo de riesgo (más consultas de crédito
+  = más necesidad financiera), y `puntaje_datacredito` / `promedio_ingresos_datacredito` son más altos en
+  quienes sí pagan a tiempo, como es esperable. Entre las categóricas, `tendencia_ingresos` = Decreciente
+  tiene la tasa de pago a tiempo más baja (93,7% vs. 96,1% de Creciente); `tipo_credito` = 6 muestra una
+  tasa mucho más baja (57%) pero con solo 21 casos, insuficiente para una conclusión firme.
+- **Multivariado (matriz de correlación)**: las correlaciones más altas entre variables numéricas se
+  explican todas por el diseño del producto financiero (ej. `capital_prestado` con `cuota_pactada`,
+  0,76 — la cuota se calcula a partir del capital), no por redundancia accidental. Ninguna se acerca a 1,
+  a diferencia de lo que pasaba con `puntaje` respecto al target — refuerza que ese caso fue el único de
+  leakage real en el dataset.
+
 ## Avance 2 — Ingeniería de características y modelado
 
 ### `ft_engineering.py`
